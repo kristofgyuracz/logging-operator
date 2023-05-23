@@ -65,7 +65,9 @@ type HTTPOutput struct {
 	// The value of the USER-AGENT header in the messages sent to the server.
 	UserAgent string `json:"user-agent,omitempty"`
 	// Description: Specifies the number of worker threads (at least 1) that syslog-ng OSE uses to send messages to the server. Increasing the number of worker threads can drastically improve the performance of the destination.
-	Workers     int    `json:"workers,omitempty"`
+	Workers int `json:"workers,omitempty"`
+	// The time to wait in seconds before a dead connection is reestablished.
+	Timeout     int    `json:"timeout,omitempty"`
 	PersistName string `json:"persist_name,omitempty"`
 }
 
