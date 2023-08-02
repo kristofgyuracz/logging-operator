@@ -49,6 +49,7 @@ func (r *Reconciler) daemonSet() (runtime.Object, reconciler.DesiredState, error
 
 	containers := []corev1.Container{
 		*r.fluentbitContainer(),
+		*newConfigMapReloader(r.Logging.Spec.FluentbitSpec),
 	}
 	if c := r.bufferMetricsSidecarContainer(); c != nil {
 		containers = append(containers, *c)
@@ -142,6 +143,44 @@ func (r *Reconciler) generatePortsMetrics() (containerPorts []corev1.ContainerPo
 		})
 	}
 	return
+}
+
+func newConfigMapReloader(spec *v1beta1.FluentbitSpec) *corev1.Container {
+	var args []string
+	vm := []corev1.VolumeMount{
+		{
+			Name:      "config",
+			MountPath: OperatorConfigPath,
+		},
+	}
+
+	args = append(args,
+		"--volume-dir=/fluentbit/config",
+		"--webhook-url=http://127.0.0.1:2020/api/v2/reload",
+	)
+
+	c := &corev1.Container{
+		Name:            "config-reloader",
+		ImagePullPolicy: corev1.PullPolicy(spec.ConfigReloaderImage.PullPolicy),
+		Image:           spec.ConfigReloaderImage.RepositoryWithTag(),
+		Resources:       spec.ConfigReloaderResources,
+		Args:            args,
+		VolumeMounts:    vm,
+	}
+
+	if spec.Security != nil && spec.Security.SecurityContext != nil {
+		c.SecurityContext = &corev1.SecurityContext{
+			RunAsUser:                spec.Security.SecurityContext.RunAsUser,
+			RunAsGroup:               spec.Security.SecurityContext.RunAsGroup,
+			ReadOnlyRootFilesystem:   spec.Security.SecurityContext.ReadOnlyRootFilesystem,
+			AllowPrivilegeEscalation: spec.Security.SecurityContext.AllowPrivilegeEscalation,
+			Privileged:               spec.Security.SecurityContext.Privileged,
+			RunAsNonRoot:             spec.Security.SecurityContext.RunAsNonRoot,
+			SELinuxOptions:           spec.Security.SecurityContext.SELinuxOptions,
+		}
+	}
+
+	return c
 }
 
 func (r *Reconciler) generateVolumeMounts() (v []corev1.VolumeMount) {
