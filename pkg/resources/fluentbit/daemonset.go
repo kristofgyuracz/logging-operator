@@ -47,14 +47,6 @@ func (r *Reconciler) daemonSet() (runtime.Object, reconciler.DesiredState, error
 		Annotations: r.fluentbitSpec.Annotations,
 	}
 
-	if r.configs != nil {
-		for key, config := range r.configs {
-			h := sha256.New()
-			_, _ = h.Write(config)
-			podMeta = templates.Annotate(podMeta, fmt.Sprintf("checksum/%s", key), fmt.Sprintf("%x", h.Sum(nil)))
-		}
-	}
-
 	containers := []corev1.Container{
 		*r.fluentbitContainer(),
 	}
@@ -109,11 +101,19 @@ func (r *Reconciler) daemonSet() (runtime.Object, reconciler.DesiredState, error
 }
 
 func (r *Reconciler) fluentbitContainer() *corev1.Container {
+	containerPorts := []corev1.ContainerPort{
+		{
+			Name:          "reload",
+			ContainerPort: "2020",
+			Protocol:      corev1.ProtocolTCP,
+		}
+	}
+	containerPorts = append(containerPorts, r.generatePortsMetrics()...)
 	return &corev1.Container{
 		Name:            containerName,
 		Image:           r.fluentbitSpec.Image.RepositoryWithTag(),
 		ImagePullPolicy: corev1.PullPolicy(r.fluentbitSpec.Image.PullPolicy),
-		Ports:           r.generatePortsMetrics(),
+		Ports:           containerPorts,
 		Resources:       r.fluentbitSpec.Resources,
 		VolumeMounts:    r.generateVolumeMounts(),
 		SecurityContext: &corev1.SecurityContext{
