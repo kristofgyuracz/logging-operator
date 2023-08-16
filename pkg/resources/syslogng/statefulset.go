@@ -260,15 +260,28 @@ func (r *Reconciler) bufferMetricsSidecarContainer() *corev1.Container {
 			port = r.Logging.Spec.SyslogNGSpec.BufferVolumeMetrics.Port
 		}
 		portParam := fmt.Sprintf("--web.listen-address=:%d", port)
-		args := []string{portParam, "--collector.disable-defaults", "--collector.filesystem"}
+		args := []string{portParam, "--collector.disable-defaults", "--collector.filesystem", "--collector.textfile", "--collector.textfile.directory=/prometheus/node_exporter/textfile_collector/"}
 
-		customRunner := fmt.Sprintf("./bin/node_exporter %v", strings.Join(args, " "))
+		nodeExporterCmd := fmt.Sprintf("nodeexporter -> ./bin/node_exporter %v", strings.Join(args, " "))
+		bufferSizeCmd := "buffersize -> /prometheus/buffer-size.sh"
+
 		return &corev1.Container{
 			Name:            "buffer-metrics-sidecar",
 			Image:           v1beta1.RepositoryWithTag(bufferVolumeImageRepository, bufferVolumeImageTag),
 			ImagePullPolicy: corev1.PullIfNotPresent,
-			Args:            []string{"--port", "7358", "--startup", customRunner},
-			Ports:           generatePortsBufferVolumeMetrics(r.Logging.Spec.SyslogNGSpec),
+			Args: []string{
+				"--port", "7358",
+				"--startup",
+				"--exec", nodeExporterCmd,
+				"--exec", bufferSizeCmd,
+			},
+			Env: []corev1.EnvVar{
+				{
+					Name:  "BUFFER_PATH",
+					Value: BufferPath,
+				},
+			},
+			Ports: generatePortsBufferVolumeMetrics(r.Logging.Spec.SyslogNGSpec),
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      r.Logging.Spec.SyslogNGSpec.BufferVolumeMetrics.MountName,
